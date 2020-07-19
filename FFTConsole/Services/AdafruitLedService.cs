@@ -2,25 +2,30 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace FFTConsole.Services
 {
     public class AdafruitLedService : ILedService
     {
+        private const int PIXEL_COUNT_WIDTH = 16;
+        private const int PIXEL_COUNT_HEIGHT = 16;
+
         private ICommunicationService communicationService;
+        private IAudioCaptureService audioCaptureService;
         private IDisposable equalizerObserver;
         private IFFTService fftService;
-        
+        private byte[] equalizerBuff;
+        private int equalizerBuffIndex;
+        private int fftBuffLen;
 
         public AdafruitLedService(ICommunicationService communicationService, IFFTService fftService)
         {
             this.communicationService = communicationService;
             this.fftService = fftService;
-
-            this.equalizerObserver = null;
         }
 
-        public void EqualizerStart(IAudioCaptureService audioCaptureService)
+        public void EqualizerStart(int fftBuffLen, IAudioCaptureService audioCaptureService)
         {
             // If we were already listening close the observer.
             if (this.equalizerObserver != null)
@@ -28,7 +33,11 @@ namespace FFTConsole.Services
                 this.equalizerObserver.Dispose();
             }
 
+            this.fftBuffLen = fftBuffLen;
+            this.equalizerBuff = new byte[this.fftBuffLen];
+            this.equalizerBuffIndex = 0;
             this.equalizerObserver = audioCaptureService.Start(this.EqualizerOnAudioPacket);
+            this.audioCaptureService = audioCaptureService;
         }
 
         public void EqualizerStop()
@@ -36,18 +45,32 @@ namespace FFTConsole.Services
             if (this.equalizerObserver != null)
             {
                 this.equalizerObserver.Dispose();
+                this.audioCaptureService = null;
             }
         }
 
         private void EqualizerOnAudioPacket(AudioPacket packet)
         {
+            int overflow = (this.equalizerBuffIndex + packet.data.Length) - this.fftBuffLen;
+            if (overflow >= 0)
+            {
+                System.Buffer.BlockCopy(packet.data, 0, this.equalizerBuff, this.equalizerBuffIndex, this.fftBuffLen - this.equalizerBuffIndex);
+                // DONT FORGET to put the overflow into the start of our equalizer buff at the end.
+            }
+            else
+            {
+                System.Buffer.BlockCopy(packet.data, 0, this.equalizerBuff, this.equalizerBuffIndex, packet.data.Length);
+                this.equalizerBuffIndex += packet.data.Length;
+                return;
+            }
+
             if (packet.sampleByteSize != 2)
             {
                 throw new Exception("This is Unsupported");
             }
             
-            // Create a (32-bit) int array ready to fill with the 16-bit data
-            int graphPointCount = packet.data.Length / packet.sampleByteSize;
+            // Create a (32-bit) double array ready to fill with the 16-bit data
+            int graphPointCount = this.equalizerBuff.Length / packet.sampleByteSize;
 
             // Create double arrays to hold the data we will graph
             double[] pcm = new double[graphPointCount];
@@ -55,118 +78,177 @@ namespace FFTConsole.Services
             double[] fftReal = new double[graphPointCount / 2];
 
             // Populate Xs and Ys with double data
-            for (int i = 0; i < graphPointCount; i++)
+            Parallel.For(0, graphPointCount, (i) =>
             {
                 // Read the int16 from the two bytes
-                Int16 val = BitConverter.ToInt16(packet.data, i * 2);
+                Int16 val = BitConverter.ToInt16(this.equalizerBuff, i * 2);
 
                 // Store the value in Ys as a percent (+/- 100% = 200%)
                 pcm[i] = (double)(val) / Math.Pow(2, 16) * 200.0;
-            }
+            });
 
             // Calculate the full FFT
             fft = this.fftService.Transform(pcm);
 
             // Determine horizontal axis units for graphs
-            // Double pcmPointSpacingMs = RATE / 1000;
             double fftMaxFreq = packet.sampleRate / 2;
-            double fftPointSpacingHz = fftMaxFreq / graphPointCount;
 
             // Just keep the real half (the other half imaginary)
             Array.Copy(fft, fftReal, fftReal.Length);
 
             // fftReal[i] == power. Frequency == i * 45hz
 
-            // 16 x 32                          Samples in range        TOTAL
-            // 1) 10 - 50 super low         |       1                   1
-            // 2) 50 - 100 med low          |       1                   2
-            // 3) 100 - 200 upper low       |       2                   4
-            // 4) 200 - 500 low mid         |       6                   10
-            // 5) 500 - 1000 med mid        |       11                  21
-            // 6) 1000 - 2000 high mid      |       22                  43
-            // 7) 2000 - 5000 low high      |       66                  109
-            // 8) 5000 - 10000 med high     |       111
-            // 9) 10000 - 20000 high high   |       222
-            
-            // X = 32                                                   FftReal[i]      Matrix X0->XN   SamplesAvail/LEDsInRange    FftAvg
-            // 1) Bass      60 -> 250       |       4                   1->4                1->4                4/4                    1
-            // 2) Low mid   250 -> 500      |       5                   5->9                5->9                5/5                    1
-            // 3) Mid       500 -> 2K       |       25                  10->33              10->15              25/6                   4
-            // 4) High mid  2K -> 4K        |       44.44               34->77              16->21              44/6                   7
-            // 5) High      4K -> 6K        |       44.44               78->122             22->27              44/6                   7
-            // 6) Brilliance? 6K -> 10K     |       88.88               123->211            28->32              89/5                   45
-            
-            // X = 16
-            // 1) Bass      60 -> 250       |       4                   1->4                1->2                4/2                    1
-            // 2) Low mid   250 -> 500      |       5                   5->9                3->4                5/2                    1
-            // 3) Mid       500 -> 2K       |       25                  10->33              5->7                25/3                   4
-            // 4) High mid  2K -> 4K        |       44.44               34->77              8->11               44/3                   7
-            // 5) High      4K -> 6K        |       44.44               78->122             12->14              44/3                   7
-            // 6) Brilliance? 6K -> 10K     |       88.88               123->211            15->16              89/2                   45
+            // Frequencies of hearing       % on Grid
+            // 20 - 60 Hz Sub Base          5
+            // 61 - 250 Hz Bass             15
+            // 251 - 500 Hz Low Mid         25
+            // 500 - 2500 Hz Mid            35
+            // 2.5 - 4 KHz Upper Mid        20
+            // 4 - 6 KHz Presence           15
 
+            //  This may sound tricky but it totally makes sense when you break it down.
+            //
+            //  ReallFFTs available for the frequencies of music are smaller than we think.
+            //  Because the buffer is of a much lower size than our audio sampling rate, our FFT does not     
+            //  accurately determine the frequency down to the single Hz.
+            //  Therefore we must determine that ourselves.
+            //
+            //  EX realFFT buffer size of 1024 w/ fftMaxFreq 22400 
+            //      this means that each realFFT[x] represents the frequency range of x * 22400/1024 Hz == 22Hz
+            // Using the chart and the frequency range per x of the realFFT we can determine how many x per individual frequency range our result set contains.
 
 
             // Serial write
-            int[] calculatedLines = new int[32];
-            double fftAvg;
-            int totalFfts;
-            double weight;
+            byte[] calculatedLines = new byte[16];
+            int volumeLevel = this.audioCaptureService.GetVolume();
 
-            for (int i = 0; i < 16; i++)
+            int entryFrequency = ((int)fftMaxFreq) / fftReal.Length;
+            int[] entriesPerRange = new int[6];
+            int[] samplesPerEntry = new int[6];
+            int[] entryStartPoint = new int[6];
+            int[] frequencyRange = new int[6];
+
+            // 20 - 60 Hz Sub Base
+            entriesPerRange[0] = 1;
+            entryStartPoint[0] = 2;
+            frequencyRange[0] = 40;
+            samplesPerEntry[0] = frequencyRange[0] / (entriesPerRange[0] * entryFrequency);
+
+            // 61 - 250 Hz Bass
+            entriesPerRange[1] = 2;
+            frequencyRange[1] = 200;
+
+            // 251 - 500 Hz Low Mid
+            entriesPerRange[2] = 4;
+            frequencyRange[2] = 250;
+
+            // 500 - 2500 Hz Mid
+            entriesPerRange[3] = 4;
+            frequencyRange[3] = 2000;
+
+            // 2.5 - 4 KHz Upper Mid
+            entriesPerRange[4] = 3;
+            frequencyRange[4] = 1500;
+
+            // 4 - 6 KHz Presence
+            entriesPerRange[5] = 2;
+            frequencyRange[5] = 2000;
+
+            for (int i = 1; i < 6; i++)
             {
-                if (i < 5)
+                entryStartPoint[i] = samplesPerEntry[i - 1] * entriesPerRange[i - 1] + entryStartPoint[i - 1];
+                if (entryStartPoint[i] == entryStartPoint[i - 1])
                 {
-                    totalFfts = 1;
-                    weight = 0.20;
+                    entryStartPoint[i] = entryStartPoint[i - 1]++;
                 }
-                else if (i < 8)
-                {
-                    totalFfts = 4;
-                    weight = 0.8;
-                }
-                else if (i < 14)
-                {
-                    totalFfts = 7;
-                    weight = 1.6;
-                }
-                else
-                {
-                    totalFfts = 7;
-                    weight = 1.6;
-                }
-
-                // We are grouping 2 X LEDs together
-                totalFfts *= 2;
-                fftAvg = 0.0;
-
-                // Ignore the first array element because the input is too erratic to be used.
-                for (int j = 1; j < (totalFfts + 1); j++)
-                {
-                    fftAvg += fftReal[(i * totalFfts) + j];
-                }
-
-                fftAvg = (fftAvg * weight)/totalFfts;
-             
-                calculatedLines[15 - i] = (int)(fftAvg * 100 * 16.0);
-                if (calculatedLines[15 - i] > 16)
-                {
-                    calculatedLines[15 - i] = 16;
-                }
+                samplesPerEntry[i] = frequencyRange[i] / (entriesPerRange[i] * entryFrequency);
             }
 
 
-            string outBuf = string.Format("{0},{1},{2},{3},{4},{5},{6},{7}," +
-                                          "{8},{9},{10},{11},{12},{13},{14},{15},\r",
-                                          calculatedLines[0], calculatedLines[1], calculatedLines[2], calculatedLines[3], calculatedLines[4], calculatedLines[5], calculatedLines[6], calculatedLines[7],
-                                          calculatedLines[8], calculatedLines[9], calculatedLines[10], calculatedLines[11], calculatedLines[12], calculatedLines[13], calculatedLines[14], calculatedLines[15]);
+            Parallel.For(0, PIXEL_COUNT_WIDTH, (i) =>
+            {
+                int startPosition;
+                int entries;
+                double weight;
+                int rangeNum;
+
+                // 20 - 60 Hz Sub Base
+                if (i < 1)              
+                {
+                    rangeNum = 0;
+                    weight = 0.08;
+                }
+                // 61 - 250 Hz Bass
+                else if (i < 3)
+                {
+                    rangeNum = 1;
+                    weight = 0.12;
+                }
+                // 251 - 500 Hz Low Mid
+                else if (i < 7)
+                {
+                    rangeNum = 2;
+                    weight = 1.0;
+                }
+                // 500 - 2500 Hz Mid
+                else if (i < 11)
+                {
+                    rangeNum = 3;
+                    weight = 1.0;
+                }
+                // 2.5 - 4 KHz Upper Mid
+                else if (i < 14)
+                {
+                    rangeNum = 4;
+                    weight = 2.0;
+                }
+                // 4 - 6 KHz Presence
+                else
+                {
+                    rangeNum = 5;
+                    weight = 3.0;
+                }
+
+                startPosition = (i * entriesPerRange[rangeNum]) + entryStartPoint[rangeNum];
+                entries = entriesPerRange[rangeNum];
+
+                double fftAvg = 0.0;
+
+                // Ignore the first array element because the input is too erratic to be used.
+                for (int j = 0; j < entries; j++)
+                {
+                    fftAvg += fftReal[startPosition + j];
+                }
+
+                fftAvg = (fftAvg * weight) / entries;
+
+                calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg * 100 * 16.0) / (volumeLevel));
+                if (calculatedLines[PIXEL_COUNT_WIDTH - i - 1] > PIXEL_COUNT_HEIGHT)
+                {
+                    calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = PIXEL_COUNT_HEIGHT;
+                }
+            });
 
             Command command = new Command()
             {
                 commandType = ECommandType.EqualizerUpdate,
-                data = outBuf
+                data = calculatedLines,
+                dataLen = calculatedLines.Length
             };
 
             this.communicationService.Send(command);
+
+            Parallel.For(0, this.equalizerBuff.Length, (i) =>
+            {
+                this.equalizerBuff[i] = 0;
+            });
+
+            // Don't forget to roll over the overflow from our packet into the next buffer.
+            if (overflow > 0)
+            {
+                System.Buffer.BlockCopy(packet.data, packet.data.Length - overflow - 1, this.equalizerBuff, 0, overflow);
+                this.equalizerBuffIndex = overflow;
+            }
         }
 
         public void Connect()

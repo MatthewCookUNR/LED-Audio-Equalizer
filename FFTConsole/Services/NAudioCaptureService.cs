@@ -5,7 +5,8 @@ using System.Collections.Generic;
 using System.IO.Ports;
 using System.Text;
 using Serilog;
-
+using NAudio.CoreAudioApi;
+using System.Threading.Tasks;
 
 namespace FFTConsole.Services
 {
@@ -13,8 +14,8 @@ namespace FFTConsole.Services
     {
         private AudioStream audioStream;
         private ILogger logger;
-        public int sampleRate;
-        public int maxPacketLen;
+        private int sampleRate;
+        private int maxPacketLen;
         private bool recording;
         private readonly object recordingLock = new object();
         private WaveInEvent waveIn;
@@ -41,7 +42,10 @@ namespace FFTConsole.Services
         {
             lock(this.recordingLock)
             {
-                if (this.recording == false) return;
+                if (this.recording == false)
+                {
+                    return;
+                }
 
                 try
                 {
@@ -57,12 +61,22 @@ namespace FFTConsole.Services
             }
         }
 
-        public void StartAudioCapture()
+        public int GetVolume()
+        {
+            MMDeviceEnumerator enumerator = new MMDeviceEnumerator();
+            MMDevice device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
+            return (int) (device.AudioEndpointVolume.MasterVolumeLevelScalar * 100.00);
+        }
+
+        private void StartAudioCapture()
         {
             // Check if we're already listening.
             lock(this.recordingLock)
             {
-                if (this.recording == true) return;
+                if (this.recording == true)
+                {
+                    return;
+                }
             }
 
             // Attempt to find the Windows Stereo Mix.
@@ -70,27 +84,33 @@ namespace FFTConsole.Services
             for (int i = 0; i < WaveInEvent.DeviceCount; i++)
             {
                 WaveInCapabilities wc = WaveInEvent.GetCapabilities(i);
-                if (wc.ProductName.Equals("Stereo Mix (Realtek High Defini") == true)
+                if (wc.ProductName.Contains("Stereo Mix"))
                 {
                     deviceNum = i;
                     break;
                 }
             }
 
-            if (deviceNum == -1) throw new Exception("Unable to find Windows Stereo Mix");
+            if (deviceNum == -1)
+            {
+                throw new Exception("Unable to find Windows Stereo Mix");
+            }
             
             // Start audio recording.
             lock (this.recordingLock)
             {
                 // Quick check if some other thread already started listening.
-                if (this.recording == true) return;
+                if (this.recording == true)
+                {
+                    return;
+                }
 
                 this.waveIn = new WaveInEvent();
                 this.waveIn.DeviceNumber = deviceNum;
-                this.waveIn.WaveFormat = new NAudio.Wave.WaveFormat(this.sampleRate, 1);
+                this.waveIn.WaveFormat = new WaveFormat(this.sampleRate, 1);
                 
                 // Set the max buffer milliseconds in the event no data is being streamed we'll keep the pipeline streaming.
-                this.waveIn.BufferMilliseconds = (int)((double)this.maxPacketLen / (double)this.sampleRate * 1000.0);
+                this.waveIn.BufferMilliseconds = (int)((double)this.maxPacketLen / (double)this.sampleRate * 1000.0 / 4);
                 this.waveIn.DataAvailable += new EventHandler<WaveInEventArgs>(this.AudioDataAvailable);
                 
                 try
@@ -109,6 +129,7 @@ namespace FFTConsole.Services
 
         private void AudioDataAvailable(object sender, WaveInEventArgs e)
         {
+            //return;
             this.audioStream.AddPacket(new AudioPacket()
             {
                 data = e.Buffer,

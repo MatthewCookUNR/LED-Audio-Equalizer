@@ -16,12 +16,14 @@ namespace FFTConsole
         IAudioCaptureService audioCaptureService;
         bool running;
         bool connected;
+        int maxPacketLen;
 
-        public Main(ILedService ledService, IAudioCaptureService audioCaptureService, ILogger logger)
+        public Main(ILedService ledService, IAudioCaptureService audioCaptureService, ILogger logger, int maxPacketLen)
         {
             this.ledService = ledService;
             this.audioCaptureService = audioCaptureService;
             this.logger = logger;
+            this.maxPacketLen = maxPacketLen;
         }
         public void Run()
         {
@@ -43,7 +45,7 @@ namespace FFTConsole
                 }
 
                 // Start the equalizer.
-                this.ledService.EqualizerStart(this.audioCaptureService);
+                this.ledService.EqualizerStart(this.maxPacketLen, this.audioCaptureService);
 
                 // Listen for user input.
                 while (this.running)

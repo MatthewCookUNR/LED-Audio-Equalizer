@@ -9,6 +9,7 @@ namespace FFTConsole.Services.Interfaces
     {
         IDisposable Start(Action<AudioPacket> onReceived);
         void Stop();
+        int GetVolume();
     }
 
     public class AudioPacket

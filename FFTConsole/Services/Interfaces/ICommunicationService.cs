@@ -16,22 +16,29 @@ namespace FFTConsole.Services.Interfaces
 
     public class Command
     {
-        public Guid guid;
         public ECommandType commandType;
-        public string data;
+        public byte[] data;
+        public int dataLen;
 
         public Command()
         {
-            this.guid = Guid.NewGuid();
+            this.data = null;
+            this.dataLen = 0;
         }
     }
 
     public class Response
     {
-        public Guid guid;
         public ECommandType commandType;
         public EReturnStatus returnStatus;
-        public string data;
+        public byte[] data;
+        public int dataLen;
+
+        public Response()
+        {
+            this.data = new byte[64];
+            this.dataLen = 0;
+        }
     }
 
     public enum ECommandType

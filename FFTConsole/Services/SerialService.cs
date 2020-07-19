@@ -20,24 +20,60 @@ namespace FFTConsole.Services.Interfaces
             this.logger = logger;
             
             this.responseStream = new ResponseStream();
-            this.serial = new SerialPort("COM");
+            this.serial = new SerialPort("COM3");
             this.serial.BaudRate = 9600;
+            this.Connect();
+        }
+
+        ~SerialService()
+        {
+            this.Disconnect();
         }
 
         public void Connect()
         {
-            if (!this.serial.IsOpen) this.serial.Open();
+            if (!this.serial.IsOpen)
+            {
+                this.serial.Open();
+            }
         }
 
         public void Disconnect()
         {
-            if (this.serial.IsOpen) this.serial.Close();
+            if (this.serial.IsOpen)
+            {
+                this.serial.Close();
+            }
         }
 
         public void Send(Command command)
         {
-            this.Connect();
-            this.serial.Write(JsonConvert.SerializeObject(command));
+            // Message format (bytes) Size = DataLen + 4
+            // [0]      : CommandType
+            // [1]      : DataLen
+            // [2]->[X] : Data (where X is DataLen + 2)
+            // [X + 1]  : Checksum
+            // [X + 2]  : '\r' end of message
+            byte[] message = new byte[1 + 1 + command.dataLen + 1 + 1];
+            message[0] = (byte) command.commandType;
+            message[1] = (byte) command.dataLen;
+            
+            byte checksum = 0;
+            checksum ^= message[0];
+            checksum ^= message[1];
+
+            for (int i = 0; i < command.dataLen; i++)
+            {
+                checksum ^= command.data[i];
+                message[2 + i] = command.data[i];
+            }
+
+            message[message.Length - 2] = checksum;
+            message[message.Length - 1] = (byte)'\r';
+
+
+            this.serial.Write(message, 0, message.Length);
+            this.logger.Information("Just sent:" + JsonConvert.SerializeObject(command).ToString());
         }
 
         public IDisposable ResponseSubscribe(Action<Response> onResponse)
@@ -57,6 +93,7 @@ namespace FFTConsole.Services.Interfaces
                 try
                 {
                     Response response = JsonConvert.DeserializeObject<Response>(line);
+                    Console.WriteLine("Received: " + line);
                     this.responseStream.AddResponse(response);
                 }
                 catch (Exception e)

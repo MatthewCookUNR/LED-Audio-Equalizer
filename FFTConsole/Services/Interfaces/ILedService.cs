@@ -8,7 +8,7 @@ namespace FFTConsole.Services.Interfaces
     {
         void Connect();
         void Disconnect();
-        void EqualizerStart(IAudioCaptureService audioCaptureService);
+        void EqualizerStart(int fftBuffLen, IAudioCaptureService audioCaptureService);
         void EqualizerStop();
         void Ping();
     }
