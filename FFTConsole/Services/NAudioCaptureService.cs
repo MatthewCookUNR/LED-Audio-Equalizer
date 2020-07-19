@@ -19,6 +19,8 @@ namespace FFTConsole.Services
         private bool recording;
         private readonly object recordingLock = new object();
         private WaveInEvent waveIn;
+        private int cachedVolume;
+        private DateTime nextVolumeUpdate;
 
         public NAudioCaptureService(int sampleRate, int maxPacketLen, ILogger logger)
         {
@@ -28,6 +30,7 @@ namespace FFTConsole.Services
             this.sampleRate = sampleRate; // sample rate of the sound card
             this.maxPacketLen = maxPacketLen; // must be a multiple of 2
             this.recording = false;
+            this.nextVolumeUpdate = new DateTime();
         }
 
         public IDisposable Start(Action<AudioPacket> onPacketReceived)
@@ -63,9 +66,15 @@ namespace FFTConsole.Services
 
         public int GetVolume()
         {
-            MMDeviceEnumerator enumerator = new MMDeviceEnumerator();
-            MMDevice device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
-            return (int) (device.AudioEndpointVolume.MasterVolumeLevelScalar * 100.00);
+            if (this.nextVolumeUpdate < DateTime.Now)
+            {
+                MMDeviceEnumerator enumerator = new MMDeviceEnumerator();
+                MMDevice device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
+                this.cachedVolume = (int)(device.AudioEndpointVolume.MasterVolumeLevelScalar * 100.00);
+                this.nextVolumeUpdate = new DateTime(DateTime.Now.Ticks + (10000 * 1000));
+            }
+
+            return this.cachedVolume;
         }
 
         private void StartAudioCapture()
@@ -110,7 +119,7 @@ namespace FFTConsole.Services
                 this.waveIn.WaveFormat = new WaveFormat(this.sampleRate, 1);
                 
                 // Set the max buffer milliseconds in the event no data is being streamed we'll keep the pipeline streaming.
-                this.waveIn.BufferMilliseconds = (int)((double)this.maxPacketLen / (double)this.sampleRate * 1000.0 / 4);
+                this.waveIn.BufferMilliseconds = (int)((double)this.maxPacketLen / (double)this.sampleRate * 1000.0 / 2);
                 this.waveIn.DataAvailable += new EventHandler<WaveInEventArgs>(this.AudioDataAvailable);
                 
                 try

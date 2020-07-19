@@ -130,8 +130,8 @@ namespace FFTConsole.Services
 
             // 20 - 60 Hz Sub Base
             entriesPerRange[0] = 1;
-            entryStartPoint[0] = 2;
-            frequencyRange[0] = 40;
+            entryStartPoint[0] = 1;
+            frequencyRange[0] = 60;
             samplesPerEntry[0] = frequencyRange[0] / (entriesPerRange[0] * entryFrequency);
 
             // 61 - 250 Hz Bass
@@ -164,49 +164,59 @@ namespace FFTConsole.Services
                 samplesPerEntry[i] = frequencyRange[i] / (entriesPerRange[i] * entryFrequency);
             }
 
+            double[] weight = new double[16];
+            weight[0] = 0.8;
+            weight[1] = 0.10;
+            weight[2] = 0.8;
+            weight[3] = 0.9;
+            weight[4] = 0.9;
+            weight[5] = 0.9;
+            weight[6] = 1.0;
+            weight[7] = 1.0;
+            weight[8] = 1.0;
+            weight[9] = 1.0;
+            weight[10] = 1.0;
+            weight[11] = 1.0;
+            weight[12] = 2.0;
+            weight[13] = 2.0;
+            weight[14] = 3.0;
+            weight[15] = 3.0;
 
             Parallel.For(0, PIXEL_COUNT_WIDTH, (i) =>
             {
                 int startPosition;
                 int entries;
-                double weight;
                 int rangeNum;
 
                 // 20 - 60 Hz Sub Base
                 if (i < 1)              
                 {
                     rangeNum = 0;
-                    weight = 0.08;
                 }
                 // 61 - 250 Hz Bass
                 else if (i < 3)
                 {
                     rangeNum = 1;
-                    weight = 0.12;
                 }
                 // 251 - 500 Hz Low Mid
                 else if (i < 7)
                 {
                     rangeNum = 2;
-                    weight = 1.0;
                 }
                 // 500 - 2500 Hz Mid
                 else if (i < 11)
                 {
                     rangeNum = 3;
-                    weight = 1.0;
                 }
                 // 2.5 - 4 KHz Upper Mid
                 else if (i < 14)
                 {
                     rangeNum = 4;
-                    weight = 2.0;
                 }
                 // 4 - 6 KHz Presence
                 else
                 {
                     rangeNum = 5;
-                    weight = 3.0;
                 }
 
                 startPosition = (i * entriesPerRange[rangeNum]) + entryStartPoint[rangeNum];
@@ -220,7 +230,7 @@ namespace FFTConsole.Services
                     fftAvg += fftReal[startPosition + j];
                 }
 
-                fftAvg = (fftAvg * weight) / entries;
+                fftAvg = (fftAvg * weight[i]) / entries;
 
                 calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg * 100 * 16.0) / (volumeLevel));
                 if (calculatedLines[PIXEL_COUNT_WIDTH - i - 1] > PIXEL_COUNT_HEIGHT)

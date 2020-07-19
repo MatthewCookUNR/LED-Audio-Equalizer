@@ -14,7 +14,7 @@ namespace FFTConsole
     {
         static void Main(string[] args)
         {
-            int maxPacketLen = (int) Math.Pow(2, 11);
+            int maxPacketLen = (int) Math.Pow(2, 10);
             ILogger logger = new LoggerConfiguration().WriteTo.File("log.txt", rollingInterval: RollingInterval.Month).CreateLogger();
             ICommunicationService communicationService = new SerialService(logger);
             IAudioCaptureService audioCaptureService = new NAudioCaptureService(44600, maxPacketLen, logger);
