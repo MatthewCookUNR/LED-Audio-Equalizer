@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace FFTConsole.Services
@@ -45,6 +46,7 @@ namespace FFTConsole.Services
             if (this.equalizerObserver != null)
             {
                 this.equalizerObserver.Dispose();
+                this.audioCaptureService.Stop();
                 this.audioCaptureService = null;
             }
         }
@@ -75,26 +77,21 @@ namespace FFTConsole.Services
             // Create double arrays to hold the data we will graph
             double[] pcm = new double[graphPointCount];
             double[] fft = new double[graphPointCount];
-            double[] fftReal = new double[graphPointCount / 2];
 
             // Populate Xs and Ys with double data
-            Parallel.For(0, graphPointCount, (i) =>
+            for(int i = 0; i < graphPointCount; i++)
             {
                 // Read the int16 from the two bytes
                 Int16 val = BitConverter.ToInt16(this.equalizerBuff, i * 2);
 
                 // Store the value in Ys as a percent (+/- 100% = 200%)
                 pcm[i] = (double)(val) / Math.Pow(2, 16) * 200.0;
-            });
+            }
 
             // Calculate the full FFT
             fft = this.fftService.Transform(pcm);
 
             // Determine horizontal axis units for graphs
-            double fftMaxFreq = packet.sampleRate / 2;
-
-            // Just keep the real half (the other half imaginary)
-            Array.Copy(fft, fftReal, fftReal.Length);
 
             // fftReal[i] == power. Frequency == i * 45hz
 
@@ -110,7 +107,7 @@ namespace FFTConsole.Services
             //
             //  ReallFFTs available for the frequencies of music are smaller than we think.
             //  Because the buffer is of a much lower size than our audio sampling rate, our FFT does not     
-            //  accurately determine the frequency down to the single Hz.
+            //  accurately represent the frequency down to the single Hz.
             //  Therefore we must determine that ourselves.
             //
             //  EX realFFT buffer size of 1024 w/ fftMaxFreq 22400 
@@ -122,7 +119,9 @@ namespace FFTConsole.Services
             byte[] calculatedLines = new byte[16];
             int volumeLevel = this.audioCaptureService.GetVolume();
 
-            int entryFrequency = ((int)fftMaxFreq) / fftReal.Length;
+            // Just keep the real half (the other half imaginary)
+            double fftMaxFreq = packet.sampleRate / 2;
+            int entryFrequency = ((int)fftMaxFreq) / (fft.Length/2);
             int[] entriesPerRange = new int[6];
             int[] samplesPerEntry = new int[6];
             int[] entryStartPoint = new int[6];
@@ -135,28 +134,28 @@ namespace FFTConsole.Services
             samplesPerEntry[0] = frequencyRange[0] / (entriesPerRange[0] * entryFrequency);
 
             // 61 - 250 Hz Bass
-            entriesPerRange[1] = 2;
+            entriesPerRange[1] = 5;
             frequencyRange[1] = 200;
 
             // 251 - 500 Hz Low Mid
-            entriesPerRange[2] = 4;
+            entriesPerRange[2] = 5;
             frequencyRange[2] = 250;
 
             // 500 - 2500 Hz Mid
-            entriesPerRange[3] = 4;
-            frequencyRange[3] = 2000;
+            entriesPerRange[3] = 2;
+            frequencyRange[3] = 1500;
 
             // 2.5 - 4 KHz Upper Mid
-            entriesPerRange[4] = 3;
-            frequencyRange[4] = 1500;
+            entriesPerRange[4] = 2;
+            frequencyRange[4] = 1250;
 
             // 4 - 6 KHz Presence
-            entriesPerRange[5] = 2;
-            frequencyRange[5] = 2000;
+            entriesPerRange[5] = 1;
+            frequencyRange[5] = 750;
 
             for (int i = 1; i < 6; i++)
             {
-                entryStartPoint[i] = samplesPerEntry[i - 1] * entriesPerRange[i - 1] + entryStartPoint[i - 1];
+                entryStartPoint[i] = (samplesPerEntry[i - 1] * entriesPerRange[i - 1]) + entryStartPoint[i - 1];
                 if (entryStartPoint[i] == entryStartPoint[i - 1])
                 {
                     entryStartPoint[i] = entryStartPoint[i - 1]++;
@@ -165,18 +164,18 @@ namespace FFTConsole.Services
             }
 
             double[] weight = new double[16];
-            weight[0] = 0.8;
-            weight[1] = 0.10;
-            weight[2] = 0.8;
-            weight[3] = 0.9;
-            weight[4] = 0.9;
-            weight[5] = 0.9;
-            weight[6] = 1.0;
-            weight[7] = 1.0;
-            weight[8] = 1.0;
-            weight[9] = 1.0;
-            weight[10] = 1.0;
-            weight[11] = 1.0;
+            weight[0] = 0.22;
+            weight[1] = 0.60;
+            weight[2] = 0.60;
+            weight[3] = 0.8;
+            weight[4] = 1.0;
+            weight[5] = 1.0;
+            weight[6] = 1.0; 
+            weight[7] = 1.2;
+            weight[8] = 1.2;
+            weight[9] = 1.2;
+            weight[10] = 1.4;
+            weight[11] = 1.4;
             weight[12] = 2.0;
             weight[13] = 2.0;
             weight[14] = 3.0;
@@ -187,52 +186,30 @@ namespace FFTConsole.Services
                 int startPosition;
                 int entries;
                 int rangeNum;
+                double fftAvg = 0.0;
+                int posTotal = 0;
 
-                // 20 - 60 Hz Sub Base
-                if (i < 1)              
+                for(rangeNum = 0; rangeNum < 6; rangeNum++)
                 {
-                    rangeNum = 0;
-                }
-                // 61 - 250 Hz Bass
-                else if (i < 3)
-                {
-                    rangeNum = 1;
-                }
-                // 251 - 500 Hz Low Mid
-                else if (i < 7)
-                {
-                    rangeNum = 2;
-                }
-                // 500 - 2500 Hz Mid
-                else if (i < 11)
-                {
-                    rangeNum = 3;
-                }
-                // 2.5 - 4 KHz Upper Mid
-                else if (i < 14)
-                {
-                    rangeNum = 4;
-                }
-                // 4 - 6 KHz Presence
-                else
-                {
-                    rangeNum = 5;
+                    posTotal += entriesPerRange[rangeNum];
+                    if (i < posTotal)
+                    {
+                        break;
+                    }   
                 }
 
                 startPosition = (i * entriesPerRange[rangeNum]) + entryStartPoint[rangeNum];
                 entries = entriesPerRange[rangeNum];
 
-                double fftAvg = 0.0;
-
                 // Ignore the first array element because the input is too erratic to be used.
                 for (int j = 0; j < entries; j++)
                 {
-                    fftAvg += fftReal[startPosition + j];
+                    fftAvg += fft[startPosition + j];
                 }
 
                 fftAvg = (fftAvg * weight[i]) / entries;
 
-                calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg * 100 * 16.0) / (volumeLevel));
+                calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg) / (volumeLevel * 2));
                 if (calculatedLines[PIXEL_COUNT_WIDTH - i - 1] > PIXEL_COUNT_HEIGHT)
                 {
                     calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = PIXEL_COUNT_HEIGHT;
@@ -248,15 +225,10 @@ namespace FFTConsole.Services
 
             this.communicationService.Send(command);
 
-            Parallel.For(0, this.equalizerBuff.Length, (i) =>
-            {
-                this.equalizerBuff[i] = 0;
-            });
-
             // Don't forget to roll over the overflow from our packet into the next buffer.
             if (overflow > 0)
             {
-                System.Buffer.BlockCopy(packet.data, packet.data.Length - overflow - 1, this.equalizerBuff, 0, overflow);
+                Buffer.BlockCopy(packet.data, packet.data.Length - overflow - 1, this.equalizerBuff, 0, overflow);
                 this.equalizerBuffIndex = overflow;
             }
         }
@@ -268,12 +240,45 @@ namespace FFTConsole.Services
 
         public void Disconnect()
         {
+            this.EqualizerStop();
             this.communicationService.Disconnect();
         }
 
-        public void Ping()
+        public void Ping(int timeoutMsec)
         {
-            throw new NotImplementedException();
+            bool responseReceived = false;
+            IDisposable responseSubscriber =  this.communicationService.ResponseSubscribe((Response response) =>
+            {
+                if (response.commandType == ECommandType.Ping)
+                {
+                    responseReceived = true;
+                }
+            });
+
+            this.communicationService.Send(new Command()
+            {
+                commandType = ECommandType.Ping,
+                data = null,
+                dataLen = 0
+            });
+
+            DateTime stopTime = DateTime.Now.AddMilliseconds(timeoutMsec);
+            while (DateTime.Now < stopTime)
+            {
+                if (responseReceived)
+                {
+                    break;
+                }
+
+                Thread.Sleep(50);
+            }
+
+            responseSubscriber.Dispose();
+
+            if (!responseReceived)
+            {
+                throw new TimeoutException("No response for Ping received");
+            }
         }
     }
 }

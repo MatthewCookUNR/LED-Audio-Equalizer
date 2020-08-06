@@ -7,6 +7,7 @@ using System.Text;
 using Serilog;
 using NAudio.CoreAudioApi;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace FFTConsole.Services
 {
@@ -21,6 +22,8 @@ namespace FFTConsole.Services
         private WaveInEvent waveIn;
         private int cachedVolume;
         private DateTime nextVolumeUpdate;
+        private BufferedWaveProvider streamBuff;
+        private Thread forwardThread;
 
         public NAudioCaptureService(int sampleRate, int maxPacketLen, ILogger logger)
         {
@@ -31,6 +34,7 @@ namespace FFTConsole.Services
             this.maxPacketLen = maxPacketLen; // must be a multiple of 2
             this.recording = false;
             this.nextVolumeUpdate = new DateTime();
+            this.forwardThread = null;
         }
 
         public IDisposable Start(Action<AudioPacket> onPacketReceived)
@@ -54,6 +58,8 @@ namespace FFTConsole.Services
                 {
                     this.waveIn.StopRecording();
                     this.recording = false;
+                    this.forwardThread.Join();
+                    this.forwardThread = null;
                 }
                 catch (Exception e)
                 {
@@ -71,7 +77,7 @@ namespace FFTConsole.Services
                 MMDeviceEnumerator enumerator = new MMDeviceEnumerator();
                 MMDevice device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Console);
                 this.cachedVolume = (int)(device.AudioEndpointVolume.MasterVolumeLevelScalar * 100.00);
-                this.nextVolumeUpdate = new DateTime(DateTime.Now.Ticks + (10000 * 1000));
+                this.nextVolumeUpdate = DateTime.Now.AddSeconds(30);
             }
 
             return this.cachedVolume;
@@ -114,18 +120,34 @@ namespace FFTConsole.Services
                     return;
                 }
 
-                this.waveIn = new WaveInEvent();
-                this.waveIn.DeviceNumber = deviceNum;
-                this.waveIn.WaveFormat = new WaveFormat(this.sampleRate, 1);
-                
+                WaveInEvent waveIn = new WaveInEvent();
+                waveIn.DeviceNumber = deviceNum;
+                waveIn.WaveFormat = new WaveFormat(this.sampleRate, 1);
                 // Set the max buffer milliseconds in the event no data is being streamed we'll keep the pipeline streaming.
-                this.waveIn.BufferMilliseconds = (int)((double)this.maxPacketLen / (double)this.sampleRate * 1000.0 / 2);
-                this.waveIn.DataAvailable += new EventHandler<WaveInEventArgs>(this.AudioDataAvailable);
+                waveIn.BufferMilliseconds = this.maxPacketLen/(this.sampleRate/1000);
+                waveIn.DataAvailable += new EventHandler<WaveInEventArgs>((object sender, WaveInEventArgs e) =>
+                {
+                    this.streamBuff.AddSamples(e.Buffer, 0, e.BytesRecorded);
+                });
+
+                // Allocate the stream buffer and discard on overflow to keep it responsive.
+                BufferedWaveProvider streamBuff = new BufferedWaveProvider(waveIn.WaveFormat);
+                streamBuff.BufferLength = this.maxPacketLen*2;
+                streamBuff.DiscardOnBufferOverflow = true;
                 
                 try
                 {
-                    this.waveIn.StartRecording();
+                    waveIn.StartRecording();
+                    this.waveIn = waveIn;
+                    this.streamBuff = streamBuff;
                     this.recording = true;
+
+                    // Check if a forwardthread was previously running.
+                    if (this.forwardThread == null)
+                    {
+                        this.forwardThread = new Thread(this.ForwardBuffToListeners);
+                        this.forwardThread.Start();
+                    }
                 }
                 catch (Exception e)
                 {
@@ -136,15 +158,25 @@ namespace FFTConsole.Services
             }
         }
 
-        private void AudioDataAvailable(object sender, WaveInEventArgs e)
+        private void ForwardBuffToListeners()
         {
-            //return;
-            this.audioStream.AddPacket(new AudioPacket()
+            AudioPacket packet = new AudioPacket()
             {
-                data = e.Buffer,
+                sampleByteSize = 2,
                 sampleRate = this.sampleRate,
-                sampleByteSize = 2
-            });
+                data = new byte[this.maxPacketLen]
+            };
+
+            while (this.recording == true)
+            {
+                while (this.streamBuff.BufferedBytes >= this.maxPacketLen)
+                {
+                    this.streamBuff.Read(packet.data, 0, this.maxPacketLen);
+                    this.audioStream.AddPacket(packet);
+                }
+
+                Thread.Sleep(this.waveIn.BufferMilliseconds / 2);
+            }
         }
     }
 }

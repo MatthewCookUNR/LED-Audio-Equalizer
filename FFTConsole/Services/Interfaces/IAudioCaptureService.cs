@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using Serilog;
 
 namespace FFTConsole.Services.Interfaces
@@ -37,14 +38,23 @@ namespace FFTConsole.Services.Interfaces
                 observers.Add(observer);
 
                 // Provide observer with existing data.
-                foreach (var packet in this.buffer) observer.OnNext(packet);
+                foreach (AudioPacket packet in this.buffer)
+                {
+                    observer.OnNext(packet);
+                }
             }
             return new AudioStreamDisposable(observer, this.observers);
         }
 
         public void AddPacket(AudioPacket audioPacket)
         {
-            foreach(var observer in this.observers) observer.OnNext(audioPacket);
+            // Run this in parallel so that all subscribes can receive the payload ASAP.
+            // If this were a traditional single threaded foreach, each subscriber must finish
+            // their OnNext function before the next subscriber receives the Packet.
+            Parallel.ForEach(this.observers, (observer) =>
+            {
+                observer.OnNext(audioPacket);
+            });
         }
         public int SubscriberCount()
         {
@@ -90,7 +100,10 @@ namespace FFTConsole.Services.Interfaces
 
         public void Dispose()
         {
-            if (observers.Contains(this.observer)) observers.Remove(this.observer);
+            if (observers.Contains(this.observer))
+            {
+                observers.Remove(this.observer);
+            }
         }
     }
 

@@ -5,15 +5,18 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Serilog;
 using Newtonsoft.Json;
-
+using System.Threading.Tasks;
+using System.Threading;
 
 namespace FFTConsole.Services.Interfaces
 {
     public class SerialService : ICommunicationService
     {
         private SerialPort serial;
+        bool stopListening;
         private readonly ILogger logger;
         private ResponseStream responseStream;
+        private Thread listenThread;
 
         public SerialService(ILogger logger) 
         { 
@@ -35,6 +38,12 @@ namespace FFTConsole.Services.Interfaces
             if (!this.serial.IsOpen)
             {
                 this.serial.Open();
+                if (this.listenThread == null)
+                {
+                    this.listenThread = new Thread(this.Listen);
+                    this.listenThread.Start();
+                    this.stopListening = false;
+                }
             }
         }
 
@@ -42,12 +51,17 @@ namespace FFTConsole.Services.Interfaces
         {
             if (this.serial.IsOpen)
             {
+                this.stopListening = true;
+                this.listenThread.Join();
                 this.serial.Close();
+                this.listenThread = null;
             }
         }
 
         public void Send(Command command)
         {
+            Connect();
+
             // Message format (bytes) Size = DataLen + 4
             // [0]      : CommandType
             // [1]      : DataLen
@@ -62,23 +76,23 @@ namespace FFTConsole.Services.Interfaces
             checksum ^= message[0];
             checksum ^= message[1];
 
-            for (int i = 0; i < command.dataLen; i++)
+            if (command.dataLen > 0)
             {
-                checksum ^= command.data[i];
-                message[2 + i] = command.data[i];
+                Array.Copy(command.data, 0, message, 2, command.dataLen);
+                for (int i = 0; i < command.dataLen; i++)
+                {
+                    checksum ^= command.data[i];
+                }
             }
 
             message[message.Length - 2] = checksum;
             message[message.Length - 1] = (byte)'\r';
 
-
             this.serial.Write(message, 0, message.Length);
-            this.logger.Information("Just sent:" + JsonConvert.SerializeObject(command).ToString());
         }
 
         public IDisposable ResponseSubscribe(Action<Response> onResponse)
         {
-            this.Listen();
             ResponseStreamObserver observer = new ResponseStreamObserver(onResponse, this.logger);
             return this.responseStream.Subscribe(observer);
         }
@@ -86,20 +100,74 @@ namespace FFTConsole.Services.Interfaces
         private void Listen()
         {
             Connect();
+            byte[] inBuf = new byte[256];
+            int currSize = 0;
 
-            while(this.serial.IsOpen)
+            while(this.stopListening == false)
             {
-                string line = this.serial.ReadLine();
-                try
+                if (this.serial.BytesToRead == 0)
                 {
-                    Response response = JsonConvert.DeserializeObject<Response>(line);
-                    Console.WriteLine("Received: " + line);
-                    this.responseStream.AddResponse(response);
+                    Thread.Sleep(100);
+                    continue;
                 }
-                catch (Exception e)
+
+                inBuf[currSize] = (byte)this.serial.ReadByte();
+
+                if (inBuf[currSize] == '\n')
                 {
-                    // Continue parsing despite a failed parse.
-                    this.logger.Error("Unable to parse response, error: " + e.ToString() + ", content: " + line);
+                    if (currSize < 3)
+                    {
+                        currSize = 0;
+                        continue;
+                    }
+
+                    Response response = new Response();
+
+                    // Response format (bytes) Size = DataLen + 5
+                    // [0]      : CommandType
+                    // [1]      : ReturnStatus
+                    // [2]      : DataLen
+                    // [3]->[X] : Data (where X is DataLen + 3)
+                    // [X + 1]  : Checksum
+                    // [X + 2]  : '\r' end of message
+                    response.commandType = (ECommandType)inBuf[0];
+                    response.returnStatus = (EReturnStatus)inBuf[1];
+                    response.dataLen = inBuf[2];
+
+                    byte checksum = 0;
+                    checksum ^= inBuf[0];
+                    checksum ^= inBuf[1];
+                    checksum ^= inBuf[2];
+
+                    if (response.dataLen > 0)
+                    {
+                        for (int i = 0; i < response.dataLen; i++)
+                        {
+                            checksum ^= response.data[i];
+                        }
+                    }
+
+                    // Don't bother copying the data if the checksum is invalid.
+                    if (checksum == inBuf[response.dataLen + 3 + 1])
+                    {
+                        if (response.dataLen > 0)
+                        {
+                            Array.Copy(inBuf, 3, response.data, 0, response.dataLen);
+                        }
+                    }
+                    
+                    //Console.WriteLine($"Received - {response.ToString()}\n");
+                    this.responseStream.AddResponse(response);
+
+                    currSize = 0;
+                }
+                else
+                {
+                    currSize++;
+                    if (currSize == inBuf.Length)
+                    {
+                        currSize = 0;
+                    }
                 }
             }
         }

@@ -10,6 +10,6 @@ namespace FFTConsole.Services.Interfaces
         void Disconnect();
         void EqualizerStart(int fftBuffLen, IAudioCaptureService audioCaptureService);
         void EqualizerStop();
-        void Ping();
+        void Ping(int timeoutMsec);
     }
 }

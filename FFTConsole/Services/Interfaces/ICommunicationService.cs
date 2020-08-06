@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Serilog;
+using System.Threading.Tasks;
 
 namespace FFTConsole.Services.Interfaces
 {
@@ -36,50 +37,51 @@ namespace FFTConsole.Services.Interfaces
 
         public Response()
         {
-            this.data = new byte[64];
+            this.data = null;
             this.dataLen = 0;
         }
     }
 
     public enum ECommandType
     {
-        Ping = 0x00,
+        Ping = 0x01,
         EqualizerUpdate = 0x10
     }
 
     public enum EReturnStatus
     {
-        ok = 0x00,
-        error = 0x01
+        Ok = 0x00,
+        Error = 0x01
     }
 
     
     public class ResponseStream : IObservable<Response>
     {
         private List<IObserver<Response>> observers;
-        private List<Response> buffer;
-
+        private readonly object observersLock = new object();
         public ResponseStream()
         {
             this.observers = new List<IObserver<Response>>();
-            this.buffer = new List<Response>();
         }
 
         public IDisposable Subscribe(IObserver<Response> observer)
         {
-            if (!observers.Contains(observer))
+            lock (this.observersLock)
             {
-                observers.Add(observer);
-
-                // Provide observer with existing data.
-                foreach (var packet in this.buffer) observer.OnNext(packet);
+                if (!this.observers.Contains(observer))
+                {
+                    this.observers.Add(observer);
+                }
+                return new ResponseStreamDisposable(observer, this.observers);
             }
-            return new ResponseStreamDisposable(observer, this.observers);
         }
 
         public void AddResponse(Response Response)
         {
-            foreach(var observer in this.observers) observer.OnNext(Response);
+            lock (this.observersLock)
+            {
+                Parallel.ForEach(this.observers, (IObserver<Response> observer) => observer.OnNext(Response));
+            }
         }
         public int SubscriberCount()
         {
