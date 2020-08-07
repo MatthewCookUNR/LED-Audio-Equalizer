@@ -1,6 +1,6 @@
 #include <RGBmatrixPanel.h>
 
-#define LED_HOLD_CYCLES 7
+#define LED_HOLD_CYCLES 6
 
 #define CLK  8   // USE THIS ON ARDUINO UNO, ADAFRUIT METRO M0, etc.
 //#define CLK A4 // USE THIS ON METRO M4 (not M0)
@@ -18,7 +18,7 @@ public:
 
   RendererService(int LedPin, int RefreshMsec);
 
-  void updateLineVals(char * cmdData);
+  void updateLineVals(unsigned char * cmdData);
   void renderLineVals();
 
 private:

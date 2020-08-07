@@ -19,7 +19,7 @@ struct Command
 {
   char commandType;
   int dataLen;
-  char data[64];
+  unsigned char data[29];
   char checksum;
 };
 
@@ -27,14 +27,14 @@ struct Response
 {
     ECommandType commandType;
     EReturnStatus returnStatus;
-    char data[64];
+    unsigned char data[29];
     int dataLen;
 };
 
 class ICommunicationService
 {
 public:
-    virtual int Receive(char * inBuf, int inBufLen) = 0;
+    virtual bool Receive(Command& command) = 0;
     virtual void Send(Response response) = 0;
 };
 

@@ -7,9 +7,10 @@ public:
 
     SerialService(int TimeoutMsec);
 
-    int Receive(char * inBuf, int inBufLen);
+    bool Receive(Command& command);
     void Send(Response response);
 
 private:
     int timeoutMsec;
+    unsigned char inBuf[32];
 };

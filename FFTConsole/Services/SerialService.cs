@@ -86,9 +86,9 @@ namespace FFTConsole.Services.Interfaces
             }
 
             message[message.Length - 2] = checksum;
-            message[message.Length - 1] = (byte)'\r';
+            message[message.Length - 1] = 255;
 
-            this.serial.Write(message, 0, message.Length);
+             this.serial.Write(message, 0, message.Length);
         }
 
         public IDisposable ResponseSubscribe(Action<Response> onResponse)
@@ -113,7 +113,7 @@ namespace FFTConsole.Services.Interfaces
 
                 inBuf[currSize] = (byte)this.serial.ReadByte();
 
-                if (inBuf[currSize] == '\n')
+                if (inBuf[currSize] == 255)
                 {
                     if (currSize < 3)
                     {
@@ -141,6 +141,8 @@ namespace FFTConsole.Services.Interfaces
 
                     if (response.dataLen > 0)
                     {
+                        response.data = new byte[response.dataLen];
+                        Array.Copy(inBuf, response.data, response.dataLen);
                         for (int i = 0; i < response.dataLen; i++)
                         {
                             checksum ^= response.data[i];

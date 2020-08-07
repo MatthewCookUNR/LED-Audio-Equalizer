@@ -14,7 +14,7 @@ RendererService::RendererService(int LedPin, int RefreshMsec)
   matrix.begin();
 }
 
-void RendererService::updateLineVals(char * cmdData)
+void RendererService::updateLineVals(unsigned char * cmdData)
 {
   // Prevent the lines from updating more than 2x the speed of the render
   unsigned long currmsec = millis();
@@ -45,7 +45,7 @@ void RendererService::updateLineVals(char * cmdData)
         if (lineVals[i].value > 0)
         {
           lineVals[i].value--;
-        }
+        }       
       }
     }
     return;
