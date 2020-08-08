@@ -12,6 +12,7 @@ namespace FFTConsole.Services.Interfaces
         void Connect();
         void Disconnect();
         void Send(Command command);
+        bool Ping(int timeoutMsec);
         IDisposable ResponseSubscribe(Action<Response> onResponse);
     }
 

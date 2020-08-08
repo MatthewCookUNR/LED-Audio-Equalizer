@@ -49,7 +49,7 @@ namespace FFTConsole.Services.Interfaces
 
                         // If we don't receive a ping from the well known let it fall through to the 
                         // normal search for port loop.
-                        if (PingDevice(1000) != true)
+                        if (Ping(1000) != true)
                         {
                             this.Disconnect();
                             knownPort = null;
@@ -78,7 +78,7 @@ namespace FFTConsole.Services.Interfaces
 
                             // If we don't receive a ping from the well known let it fall through to the 
                             // normal search for port loop.
-                            if (PingDevice(1000) != true)
+                            if (Ping(1000) != true)
                             {
                                 this.Disconnect();
                                 continue;
@@ -233,7 +233,7 @@ namespace FFTConsole.Services.Interfaces
             }
         }
 
-        private bool PingDevice(int timeoutMsec)
+        public bool Ping(int timeoutMsec)
         {
             bool pongReceived = false;
             IDisposable listener = this.ResponseSubscribe((Response response) =>

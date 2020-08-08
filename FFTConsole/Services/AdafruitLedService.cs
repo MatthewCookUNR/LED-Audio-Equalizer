@@ -244,36 +244,7 @@ namespace FFTConsole.Services
 
         public void Ping(int timeoutMsec)
         {
-            bool responseReceived = false;
-            IDisposable responseSubscriber =  this.communicationService.ResponseSubscribe((Response response) =>
-            {
-                if (response.commandType == ECommandType.Ping)
-                {
-                    responseReceived = true;
-                }
-            });
-
-            this.communicationService.Send(new Command()
-            {
-                commandType = ECommandType.Ping,
-                data = null,
-                dataLen = 0
-            });
-
-            DateTime stopTime = DateTime.Now.AddMilliseconds(timeoutMsec);
-            while (DateTime.Now < stopTime)
-            {
-                if (responseReceived)
-                {
-                    break;
-                }
-
-                Thread.Sleep(50);
-            }
-
-            responseSubscriber.Dispose();
-
-            if (!responseReceived)
+            if (!this.communicationService.Ping(1000))
             {
                 throw new TimeoutException("No response for Ping received");
             }
