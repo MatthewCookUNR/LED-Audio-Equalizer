@@ -83,10 +83,12 @@ void RendererService::updateLineVals(unsigned char * cmdData)
   return;
 }
 
-void RendererService::renderLineVals()
+void RendererService::renderLineVals(unsigned char * cmdData)
   {
     static unsigned long nextRender = 0;
     unsigned long currmsec = millis();
+
+    updateLineVals(cmdData);
 
     if (currmsec <= nextRender)
     {

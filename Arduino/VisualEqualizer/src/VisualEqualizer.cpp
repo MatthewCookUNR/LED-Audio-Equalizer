@@ -63,8 +63,7 @@ void loop()
 
 POST_INPUT:
 
-  rendererService->updateLineVals(lineDataPtr);
-  rendererService->renderLineVals(); 
+  rendererService->renderLineVals(lineDataPtr); 
  }
 
 

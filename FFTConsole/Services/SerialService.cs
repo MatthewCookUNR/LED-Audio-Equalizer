@@ -97,7 +97,7 @@ namespace FFTConsole.Services.Interfaces
                         }
                     }
 
-                    if (knownPort == null)
+                    if (this.serial == null)
                     {
                         throw new Exception("Unable to detect device");
                     }
@@ -154,6 +154,40 @@ namespace FFTConsole.Services.Interfaces
         {
             ResponseStreamObserver observer = new ResponseStreamObserver(onResponse, this.logger);
             return this.responseStream.Subscribe(observer);
+        }
+
+        public bool Ping(int timeoutMsec)
+        {
+            bool pongReceived = false;
+            IDisposable listener = this.ResponseSubscribe((Response response) =>
+            {
+                if (response.commandType == ECommandType.Ping)
+                {
+                    pongReceived = true;
+                }
+            });
+
+            this.Send(new Command()
+            {
+                commandType = ECommandType.Ping,
+                dataLen = 0,
+                data = null
+            });
+
+            DateTime timeout = DateTime.Now.AddMilliseconds(timeoutMsec);
+            while (DateTime.Now < timeout)
+            {
+                if (pongReceived == true)
+                {
+                    break;
+                }
+                else
+                {
+                    Thread.Sleep(50);
+                }
+            }
+
+            return pongReceived;
         }
 
         private void Listen()
@@ -231,40 +265,6 @@ namespace FFTConsole.Services.Interfaces
                     }
                 }
             }
-        }
-
-        public bool Ping(int timeoutMsec)
-        {
-            bool pongReceived = false;
-            IDisposable listener = this.ResponseSubscribe((Response response) =>
-            {
-                if (response.commandType == ECommandType.Ping)
-                {
-                    pongReceived = true;
-                }
-            });
-
-            this.Send(new Command()
-            {
-                commandType = ECommandType.Ping,
-                dataLen = 0,
-                data = null
-            });
-
-            DateTime timeout = DateTime.Now.AddMilliseconds(timeoutMsec);
-            while(DateTime.Now < timeout)
-            {
-                if (pongReceived == true)
-                {
-                    break;
-                }
-                else
-                {
-                    Thread.Sleep(50);
-                }
-            }
-
-            return pongReceived;
         }
     }
 }

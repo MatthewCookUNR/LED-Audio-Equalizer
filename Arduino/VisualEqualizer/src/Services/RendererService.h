@@ -18,8 +18,8 @@ public:
 
   RendererService(int LedPin, int RefreshMsec);
 
-  void updateLineVals(unsigned char * cmdData);
-  void renderLineVals();
+  // NULL cmdData is valid, call this as frequently as desired for responsiveness.
+  void renderLineVals(unsigned char * cmdData);
 
 private:
     struct LineValue
@@ -35,5 +35,6 @@ private:
     int tempLineVal;
     int i;
     
+    void updateLineVals(unsigned char * cmdData);
     uint16_t RowToColor(int x);  
 };

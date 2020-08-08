@@ -56,12 +56,12 @@ namespace FFTConsole.Services
             int overflow = (this.equalizerBuffIndex + packet.data.Length) - this.fftBuffLen;
             if (overflow >= 0)
             {
-                System.Buffer.BlockCopy(packet.data, 0, this.equalizerBuff, this.equalizerBuffIndex, this.fftBuffLen - this.equalizerBuffIndex);
+                Buffer.BlockCopy(packet.data, 0, this.equalizerBuff, this.equalizerBuffIndex, this.fftBuffLen - this.equalizerBuffIndex);
                 // DONT FORGET to put the overflow into the start of our equalizer buff at the end.
             }
             else
             {
-                System.Buffer.BlockCopy(packet.data, 0, this.equalizerBuff, this.equalizerBuffIndex, packet.data.Length);
+                Buffer.BlockCopy(packet.data, 0, this.equalizerBuff, this.equalizerBuffIndex, packet.data.Length);
                 this.equalizerBuffIndex += packet.data.Length;
                 return;
             }
