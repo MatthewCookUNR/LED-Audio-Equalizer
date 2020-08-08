@@ -103,8 +103,6 @@ namespace FFTConsole.Services
             // 2.5 - 4 KHz Upper Mid        20
             // 4 - 6 KHz Presence           15
 
-            //  This may sound tricky but it totally makes sense when you break it down.
-            //
             //  ReallFFTs available for the frequencies of music are smaller than we think.
             //  Because the buffer is of a much lower size than our audio sampling rate, our FFT does not     
             //  accurately represent the frequency down to the single Hz.

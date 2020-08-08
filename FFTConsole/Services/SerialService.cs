@@ -17,14 +17,14 @@ namespace FFTConsole.Services.Interfaces
         private readonly ILogger logger;
         private ResponseStream responseStream;
         private Thread listenThread;
+        private static string knownPort = null;
 
         public SerialService(ILogger logger) 
         { 
             this.logger = logger;
             
             this.responseStream = new ResponseStream();
-            this.serial = new SerialPort("COM3");
-            this.serial.BaudRate = 9600;
+            this.serial = null;
             this.Connect();
         }
 
@@ -35,26 +35,85 @@ namespace FFTConsole.Services.Interfaces
 
         public void Connect()
         {
-            if (!this.serial.IsOpen)
+            if (this.serial == null)
             {
-                this.serial.Open();
-                if (this.listenThread == null)
+                if (knownPort != null)
                 {
-                    this.listenThread = new Thread(this.Listen);
-                    this.listenThread.Start();
-                    this.stopListening = false;
+                    try
+                    {
+                        this.serial = new SerialPort(knownPort);
+                        this.serial.Open();
+                        this.listenThread = new Thread(this.Listen);
+                        this.listenThread.Start();
+                        this.stopListening = false;
+
+                        // If we don't receive a ping from the well known let it fall through to the 
+                        // normal search for port loop.
+                        if (PingDevice(1000) != true)
+                        {
+                            this.Disconnect();
+                            knownPort = null;
+                        }
+                    }
+                    // clearly that shit didn't work
+                    catch (Exception e)
+                    {
+                        knownPort = null;
+                    }
                 }
+
+                // Check again. Logic above is - If well known port fails, disconnect and fall through to normal loop.
+                if (this.serial == null)
+                {
+                    for (int i = 0; i < 16; i++)
+                    {
+                        try
+                        {
+                            string tempPort = $"COM{i}";
+                            this.serial = new SerialPort(tempPort);
+                            this.serial.Open();
+                            this.listenThread = new Thread(this.Listen);
+                            this.listenThread.Start();
+                            this.stopListening = false;
+
+                            // If we don't receive a ping from the well known let it fall through to the 
+                            // normal search for port loop.
+                            if (PingDevice(1000) != true)
+                            {
+                                this.Disconnect();
+                                continue;
+                            }
+                            else
+                            {
+                                knownPort = tempPort;
+                                break;
+                            }
+                        }
+                        // clearly that shit didn't work
+                        catch (Exception e)
+                        {
+                            knownPort = null;
+                            continue;
+                        }
+                    }
+
+                    if (knownPort == null)
+                    {
+                        throw new Exception("Unable to detect device");
+                    }
+                }                
             }
         }
 
         public void Disconnect()
         {
-            if (this.serial.IsOpen)
+            if (this.serial != null)
             {
                 this.stopListening = true;
                 this.listenThread.Join();
                 this.serial.Close();
                 this.listenThread = null;
+                this.serial = null;
             }
         }
 
@@ -172,6 +231,40 @@ namespace FFTConsole.Services.Interfaces
                     }
                 }
             }
+        }
+
+        private bool PingDevice(int timeoutMsec)
+        {
+            bool pongReceived = false;
+            IDisposable listener = this.ResponseSubscribe((Response response) =>
+            {
+                if (response.commandType == ECommandType.Ping)
+                {
+                    pongReceived = true;
+                }
+            });
+
+            this.Send(new Command()
+            {
+                commandType = ECommandType.Ping,
+                dataLen = 0,
+                data = null
+            });
+
+            DateTime timeout = DateTime.Now.AddMilliseconds(timeoutMsec);
+            while(DateTime.Now < timeout)
+            {
+                if (pongReceived == true)
+                {
+                    break;
+                }
+                else
+                {
+                    Thread.Sleep(50);
+                }
+            }
+
+            return pongReceived;
         }
     }
 }
