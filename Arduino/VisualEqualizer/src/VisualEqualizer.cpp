@@ -5,7 +5,7 @@
 #include "Services/RendererService.h"
 #include "Services/SerialService.h"
 
-#define MSEC_PER_REFRESH 1
+#define MSEC_PER_REFRESH 2
 #define LED_PIN 12
 
 RendererService* rendererService;

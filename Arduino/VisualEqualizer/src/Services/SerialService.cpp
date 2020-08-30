@@ -10,7 +10,7 @@ SerialService::SerialService(int TimeoutMsec)
 bool SerialService::Receive(Command& command)
 {
     static int bufPos = 0;
-    bool commandValid = false;;
+    bool commandValid = false;
     
     int retLen = Serial.readBytes(&inBuf[bufPos], sizeof(inBuf) - bufPos);
     if (retLen == 0)
