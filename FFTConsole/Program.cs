@@ -16,7 +16,7 @@ namespace FFTConsole
         {
             bool running;
             bool connected;
-            int maxPacketLen = (int) Math.Pow(2, 12);
+            int maxPacketLen = (int) Math.Pow(2, 13);
             ILogger logger = new LoggerConfiguration().WriteTo.File("log.txt", rollingInterval: RollingInterval.Month).CreateLogger();
             ICommunicationService communicationService = new SerialService(logger);
             IAudioCaptureService audioCaptureService = new NAudioCaptureService(96000, maxPacketLen, logger);
@@ -91,7 +91,7 @@ namespace FFTConsole
             }
         }
 
-        // DONT USE STATIC VOIDS - I did it here cuz Main doesn't have access to an instance of Program.
+        // Normally I am not a fan of static functions, I did it here cuz Main doesn't have access to an instance of Program.
         // And honestly who cares what we're doin here in main anyways? the meat and potatoes are in the backend
         static void AttemptConnect(ILedService ledService, ILogger logger)
         {

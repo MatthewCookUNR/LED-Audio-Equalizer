@@ -175,7 +175,7 @@ namespace FFTConsole.Services
                     this.audioStream.AddPacket(packet);
                 }
 
-                Thread.Sleep(this.waveIn.BufferMilliseconds / 2);
+                Thread.Sleep(this.waveIn.BufferMilliseconds / 3);
             }
         }
     }

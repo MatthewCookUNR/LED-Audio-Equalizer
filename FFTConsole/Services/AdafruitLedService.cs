@@ -132,24 +132,24 @@ namespace FFTConsole.Services
             samplesPerEntry[0] = frequencyRange[0] / (entriesPerRange[0] * entryFrequency);
 
             // 61 - 250 Hz Bass
-            entriesPerRange[1] = 5;
+            entriesPerRange[1] = 4;
             frequencyRange[1] = 200;
 
             // 251 - 500 Hz Low Mid
             entriesPerRange[2] = 5;
             frequencyRange[2] = 250;
 
-            // 500 - 2500 Hz Mid
-            entriesPerRange[3] = 2;
+            // 500 - 2000 Hz Mid
+            entriesPerRange[3] = 3;
             frequencyRange[3] = 1500;
 
-            // 2.5 - 4 KHz Upper Mid
+            // 2 - 4 KHz Upper Mid
             entriesPerRange[4] = 2;
-            frequencyRange[4] = 1250;
+            frequencyRange[4] = 2000;
 
             // 4 - 6 KHz Presence
             entriesPerRange[5] = 1;
-            frequencyRange[5] = 750;
+            frequencyRange[5] = 1000;
 
             for (int i = 1; i < 6; i++)
             {
@@ -162,19 +162,19 @@ namespace FFTConsole.Services
             }
 
             double[] weight = new double[16];
-            weight[0] = 0.22;
-            weight[1] = 0.60;
-            weight[2] = 0.60;
-            weight[3] = 0.8;
-            weight[4] = 1.0;
-            weight[5] = 1.0;
-            weight[6] = 1.0; 
-            weight[7] = 1.2;
-            weight[8] = 1.2;
-            weight[9] = 1.2;
-            weight[10] = 1.4;
-            weight[11] = 1.4;
-            weight[12] = 2.0;
+            weight[0] = 0.28;
+            weight[1] = 0.30;
+            weight[2] = 0.45;
+            weight[3] = 0.65;
+            weight[4] = 0.8;
+            weight[5] = 0.8;
+            weight[6] = 0.8; 
+            weight[7] = 1.0;
+            weight[8] = 1.0;
+            weight[9] = 1.0;
+            weight[10] = 1.2;
+            weight[11] = 1.2;
+            weight[12] = 1.5;
             weight[13] = 2.0;
             weight[14] = 3.0;
             weight[15] = 3.0;
@@ -190,7 +190,7 @@ namespace FFTConsole.Services
                 for(rangeNum = 0; rangeNum < 6; rangeNum++)
                 {
                     posTotal += entriesPerRange[rangeNum];
-                    if (i < posTotal)
+                    if (i <= posTotal)
                     {
                         break;
                     }   
@@ -207,7 +207,7 @@ namespace FFTConsole.Services
 
                 fftAvg = (fftAvg * weight[i]) / entries;
 
-                calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg) / (volumeLevel * 2));
+                calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg) / (volumeLevel * 3));
                 if (calculatedLines[PIXEL_COUNT_WIDTH - i - 1] > PIXEL_COUNT_HEIGHT)
                 {
                     calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = PIXEL_COUNT_HEIGHT;
