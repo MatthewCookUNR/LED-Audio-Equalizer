@@ -5,7 +5,7 @@ using System.Text;
 using Serilog;
 using System.Threading.Tasks;
 
-namespace FFTConsole.Services.Interfaces
+namespace LedEqualizer.Services.Interfaces
 {
     public interface ICommunicationService
     {

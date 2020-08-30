@@ -1,4 +1,4 @@
-﻿using FFTConsole.Services.Interfaces;
+﻿using LedEqualizer.Services.Interfaces;
 using NAudio.Wave;
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,7 @@ using NAudio.CoreAudioApi;
 using System.Threading.Tasks;
 using System.Threading;
 
-namespace FFTConsole.Services
+namespace LedEqualizer.Services
 {
     public class NAudioCaptureService : IAudioCaptureService
     {

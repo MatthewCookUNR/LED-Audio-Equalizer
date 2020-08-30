@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace FFTConsole.Services.Interfaces
+namespace LedEqualizer.Services.Interfaces
 {
     public interface ILedService
     {

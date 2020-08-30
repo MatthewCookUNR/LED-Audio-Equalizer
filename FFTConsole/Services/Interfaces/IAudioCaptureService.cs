@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Serilog;
 
-namespace FFTConsole.Services.Interfaces
+namespace LedEqualizer.Services.Interfaces
 {
     public interface IAudioCaptureService
     {

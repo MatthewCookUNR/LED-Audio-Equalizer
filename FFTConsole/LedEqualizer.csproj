@@ -3,7 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.0</TargetFramework>
     <Platforms>AnyCPU;x64</Platforms>
-    <StartupObject>FFTConsole.Program</StartupObject>
+    <StartupObject>LedEqualizer.Program</StartupObject>
     <ApplicationIcon>equalizer.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

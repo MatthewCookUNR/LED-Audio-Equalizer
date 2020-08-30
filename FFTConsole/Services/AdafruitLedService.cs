@@ -1,11 +1,11 @@
-﻿using FFTConsole.Services.Interfaces;
+﻿using LedEqualizer.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace FFTConsole.Services
+namespace LedEqualizer.Services
 {
     public class AdafruitLedService : ILedService
     {

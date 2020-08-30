@@ -5,11 +5,11 @@ using System.Threading;
 using Accord.Math;
 using NAudio.Wave;
 using NAudio.CoreAudioApi;
-using FFTConsole.Services;
-using FFTConsole.Services.Interfaces;
+using LedEqualizer.Services;
+using LedEqualizer.Services.Interfaces;
 using Serilog;
 using Newtonsoft.Json;
-namespace FFTConsole
+namespace LedEqualizer
 {    class Program
     {
         static void Main(string[] args)

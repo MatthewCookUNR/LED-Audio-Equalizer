@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 using System.Threading.Tasks;
 using System.Threading;
 
-namespace FFTConsole.Services.Interfaces
+namespace LedEqualizer.Services.Interfaces
 {
     public class SerialService : ICommunicationService
     {
