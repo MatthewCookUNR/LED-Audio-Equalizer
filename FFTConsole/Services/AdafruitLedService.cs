@@ -107,9 +107,10 @@ namespace LedEqualizer.Services
             //  Because the buffer is of a much lower size than our audio sampling rate, our FFT does not     
             //  accurately represent the frequency down to the single Hz.
             //  Therefore we must determine that ourselves.
+            //  And to make things worse half of our resulting FFT is imaginary.
             //
             //  EX realFFT buffer size of 1024 w/ fftMaxFreq 22400 
-            //      this means that each realFFT[x] represents the frequency range of x * 22400/1024 Hz == 22Hz
+            //      this means that each realFFT[x] represents the frequency range of x * 22400/(1024/2) Hz == 22Hz
             // Using the chart and the frequency range per x of the realFFT we can determine how many x per individual frequency range our result set contains.
 
 
