@@ -126,7 +126,7 @@ namespace LedEqualizer.Services.Interfaces
             // [1]      : DataLen
             // [2]->[X] : Data (where X is DataLen + 2)
             // [X + 1]  : Checksum
-            // [X + 2]  : '\r' end of message
+            // [X + 2]  : 255 end of message
             byte[] message = new byte[1 + 1 + command.dataLen + 1 + 1];
             message[0] = (byte) command.commandType;
             message[1] = (byte) command.dataLen;
@@ -144,6 +144,11 @@ namespace LedEqualizer.Services.Interfaces
                 }
             }
 
+            // Prevent the checksum from being our delimeter.
+            if (checksum == 255)
+            {
+                checksum = 0;
+            }
             message[message.Length - 2] = checksum;
             message[message.Length - 1] = 255;
 
@@ -240,6 +245,11 @@ namespace LedEqualizer.Services.Interfaces
                         {
                             checksum ^= response.data[i];
                         }
+                    }
+
+                    if (checksum == 255)
+                    {
+                        checksum = 0;
                     }
 
                     // Don't bother copying the data if the checksum is invalid.

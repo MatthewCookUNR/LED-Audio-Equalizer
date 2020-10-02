@@ -47,6 +47,10 @@ bool SerialService::Receive(Command& command)
           checksum ^= inBuf[j + 2];
       }
 
+      if (checksum == 255)
+      {
+          checksum = 0;
+      }
       if (checksum != inBuf[command.dataLen + 2])
       {
           break;
@@ -94,7 +98,7 @@ void SerialService::Send(Response response)
     // [2]      : DataLen
     // [3]->[X] : Data (where X is DataLen + 3)
     // [X + 1]  : Checksum
-    // [X + 2]  : '\r' end of message
+    // [X + 2]  : 255 end of message
     unsigned char message[64 + 5];
     message[0] = response.commandType;
     message[1] = response.returnStatus;
@@ -114,6 +118,10 @@ void SerialService::Send(Response response)
         }
     }
 
+    if (checksum == 255)
+    {
+        checksum = 0;
+    }
     message[response.dataLen + 3] = checksum;
     message[response.dataLen + 3 + 1] = 255;
     Serial.write(message, response.dataLen + 3 + 1 + 1);
