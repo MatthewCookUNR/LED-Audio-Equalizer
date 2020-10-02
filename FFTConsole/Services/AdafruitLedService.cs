@@ -70,7 +70,7 @@ namespace LedEqualizer.Services
             {
                 throw new Exception("This is Unsupported");
             }
-            
+
             // Create a (32-bit) double array ready to fill with the 16-bit data
             int graphPointCount = this.equalizerBuff.Length / packet.sampleByteSize;
 
@@ -79,7 +79,7 @@ namespace LedEqualizer.Services
             double[] fft = new double[graphPointCount];
 
             // Populate Xs and Ys with double data
-            for(int i = 0; i < graphPointCount; i++)
+            for (int i = 0; i < graphPointCount; i++)
             {
                 // Read the int16 from the two bytes
                 Int16 val = BitConverter.ToInt16(this.equalizerBuff, i * 2);
@@ -120,7 +120,7 @@ namespace LedEqualizer.Services
 
             // Just keep the real half (the other half imaginary)
             double fftMaxFreq = packet.sampleRate / 2;
-            int entryFrequency = ((int)fftMaxFreq) / (fft.Length/2);
+            int entryFrequency = ((int)fftMaxFreq) / (fft.Length / 2);
             int[] entriesPerRange = new int[6];
             int[] samplesPerEntry = new int[6];
             int[] entryStartPoint = new int[6];
@@ -163,22 +163,34 @@ namespace LedEqualizer.Services
             }
 
             double[] weight = new double[16];
-            weight[0] = 0.28;
-            weight[1] = 0.30;
+            weight[0] = 0.32;
+            weight[1] = 0.35;
             weight[2] = 0.45;
-            weight[3] = 0.65;
-            weight[4] = 0.8;
-            weight[5] = 0.8;
-            weight[6] = 0.8; 
-            weight[7] = 1.0;
-            weight[8] = 1.0;
+            weight[3] = 0.55;
+            weight[4] = 0.65;
+            weight[5] = 0.70;
+            weight[6] = 0.75;
+            weight[7] = 0.85;
+            weight[8] = 0.95;
             weight[9] = 1.0;
             weight[10] = 1.2;
             weight[11] = 1.2;
-            weight[12] = 1.5;
-            weight[13] = 2.0;
-            weight[14] = 3.0;
-            weight[15] = 3.0;
+            weight[12] = 2.0;
+            weight[13] = 3.0;
+            weight[14] = 4.0;
+            weight[15] = 4.5;
+
+
+            // Pre calculate the number of entries leading up to a range.
+            int[] sumEntriesPerRange = new int[6];
+            for (int i = 0; i < 6; i++)
+            {
+                sumEntriesPerRange[i] = 0;
+                for (int j = 0; j < i; j++)
+                {
+                    sumEntriesPerRange[i] += entriesPerRange[j];
+                }
+            }
 
             Parallel.For(0, PIXEL_COUNT_WIDTH, (i) =>
             {
@@ -188,17 +200,17 @@ namespace LedEqualizer.Services
                 double fftAvg = 0.0;
                 int posTotal = 0;
 
-                for(rangeNum = 0; rangeNum < 6; rangeNum++)
+                for (rangeNum = 0; rangeNum < 6; rangeNum++)
                 {
                     posTotal += entriesPerRange[rangeNum];
-                    if (i <= posTotal)
+                    if (i < posTotal)
                     {
                         break;
-                    }   
+                    }
                 }
 
-                startPosition = (i * entriesPerRange[rangeNum]) + entryStartPoint[rangeNum];
-                entries = entriesPerRange[rangeNum];
+                startPosition = ((i - sumEntriesPerRange[rangeNum]) * samplesPerEntry[rangeNum] + entryStartPoint[rangeNum]);
+                entries = samplesPerEntry[rangeNum];
 
                 // Ignore the first array element because the input is too erratic to be used.
                 for (int j = 0; j < entries; j++)
@@ -208,7 +220,7 @@ namespace LedEqualizer.Services
 
                 fftAvg = (fftAvg * weight[i]) / entries;
 
-                calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg) / (volumeLevel * 3));
+                calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = (byte)((fftAvg) / (volumeLevel * 2));
                 if (calculatedLines[PIXEL_COUNT_WIDTH - i - 1] > PIXEL_COUNT_HEIGHT)
                 {
                     calculatedLines[PIXEL_COUNT_WIDTH - i - 1] = PIXEL_COUNT_HEIGHT;
